@@ -83,7 +83,7 @@ inline __device__ float LengthSquared(const float3& a)
 
 inline __device__ float Length(const float3& a)
 {
-    return sqrtf(LengthSquared(a));
+    return sqrt(LengthSquared(a));
 }
 
 inline __device__ float Distance(const float3& a, const float3& b)
@@ -117,10 +117,36 @@ struct Ray {
     {
         return origin + direction * t;
     }
+
+    [[nodiscard]] __device__ float HitSphere(const float3& center, const float radius) const
+    {
+        const float3 oc = origin - center;
+        const float a = LengthSquared(direction);
+        const float b = 2.0f * Dot(oc, direction);
+        const float c = LengthSquared(oc) - radius * radius;
+        const float discriminant = b * b - 4 * a * c;
+        return discriminant < 0 ? -1.0f : (-b - sqrt(discriminant)) / (2.0f * a);
+    }
+};
+
+struct Sphere {
+    float3 center;
+    float radius;
+
+    [[nodiscard]] __device__ float Hit(const Ray& ray) const
+    {
+        return ray.HitSphere(center, radius);
+    }
 };
 
 __device__ float3 Trace(const Ray& ray)
 {
+    constexpr Sphere sphere { { 0.0f, 0.0f, -1.0f }, 0.5f };
+    const float t = sphere.Hit(ray);
+    if (t > 0.0f) {
+        return Normalize(ray.At(t) - sphere.center) * 0.5 + 0.5f;
+    }
+
     return Lerp(
         { 1.0f, 1.0f, 1.0f },
         { 0.5f, 0.7f, 1.0f },
