@@ -1,8 +1,130 @@
 #include <cstdio>
 
-__device__ float3 Trace(const float2 uv)
+#pragma region Vector Operators
+
+inline __device__ float3 operator-(const float3& a)
 {
-    return float3 { uv.x, uv.y, 0.0f };
+    return { -a.x, -a.y, -a.z };
+}
+
+inline __device__ float3 operator+(const float3& a, const float3& b)
+{
+    return { a.x + b.x, a.y + b.y, a.z + b.z };
+}
+
+inline __device__ float3 operator+(const float3& a, const float b)
+{
+    return { a.x + b, a.y + b, a.z + b };
+}
+
+inline __device__ float3 operator+(const float a, const float3& b)
+{
+    return b + a;
+}
+
+inline __device__ float3 operator-(const float3& a, const float3& b)
+{
+    return { a.x - b.x, a.y - b.y, a.z - b.z };
+}
+
+inline __device__ float3 operator-(const float3& a, const float b)
+{
+    return { a.x - b, a.y - b, a.z - b };
+}
+
+inline __device__ float3 operator-(const float a, const float3& b)
+{
+    return b - a;
+}
+
+inline __device__ float3 operator*(const float3& a, const float3& b)
+{
+    return { a.x * b.x, a.y * b.y, a.z * b.z };
+}
+
+inline __device__ float3 operator*(const float3& a, const float b)
+{
+    return { a.x * b, a.y * b, a.z * b };
+}
+
+inline __device__ float3 operator*(const float a, const float3& b)
+{
+    return b * a;
+}
+
+inline __device__ float3 operator/(const float3& a, const float3& b)
+{
+    return { a.x / b.x, a.y / b.y, a.z / b.z };
+}
+
+inline __device__ float3 operator/(const float3& a, const float b)
+{
+    return { a.x / b, a.y / b, a.z / b };
+}
+
+inline __device__ float Dot(const float3& a, const float3& b)
+{
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+inline __device__ float3 Cross(const float3& a, const float3& b)
+{
+    return {
+        a.y * b.z - a.z * b.y,
+        a.z * b.x - a.x * b.z,
+        a.x * b.y - a.y * b.x
+    };
+}
+
+inline __device__ float LengthSquared(const float3& a)
+{
+    return Dot(a, a);
+}
+
+inline __device__ float Length(const float3& a)
+{
+    return sqrtf(LengthSquared(a));
+}
+
+inline __device__ float Distance(const float3& a, const float3& b)
+{
+    return Length(a - b);
+}
+
+inline __device__ float3 Normalize(const float3& a)
+{
+    return a / Length(a);
+}
+
+inline __device__ float3 Lerp(const float3& a, const float3& b, const float t)
+{
+    return a + (b - a) * t;
+}
+
+#pragma endregion
+
+unsigned CalcNumBlocks(const unsigned size, const unsigned blockSize)
+{
+    const unsigned count = size / blockSize;
+    return size % blockSize ? count + 1 : count;
+}
+
+struct Ray {
+    float3 origin;
+    float3 direction;
+
+    [[nodiscard]] __device__ float3 At(const float t) const
+    {
+        return origin + direction * t;
+    }
+};
+
+__device__ float3 Trace(const Ray& ray)
+{
+    return Lerp(
+        { 1.0f, 1.0f, 1.0f },
+        { 0.5f, 0.7f, 1.0f },
+        ray.direction.y * 0.5f + 0.5f);
 }
 
 __global__ void Render(const int width, const int height, float3* pixels)
@@ -14,17 +136,26 @@ __global__ void Render(const int width, const int height, float3* pixels)
         return;
     }
 
+    const float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+
     const float2 uv = {
         static_cast<float>(x) / static_cast<float>(width),
         static_cast<float>(y) / static_cast<float>(height)
     };
-    pixels[x + y * width] = Trace(uv);
-}
 
-unsigned CalcNumBlocks(const unsigned size, const unsigned blockSize)
-{
-    const unsigned count = size / blockSize;
-    return size % blockSize ? count + 1 : count;
+    constexpr float3 origin { 0.0f, 0.0f, 0.0f };
+
+    constexpr float focalLength = 1.0f;
+
+    const float3 direction {
+        aspectRatio * (uv.x - 0.5f) * 2.0f,
+        -(uv.y - 0.5f) * 2.0f,
+        -focalLength
+    };
+
+    const Ray ray { origin, Normalize(direction) };
+
+    pixels[x + y * width] = Trace(ray);
 }
 
 void WriteImage(const char* filename, const int width, const int height, const float3* pixels)
