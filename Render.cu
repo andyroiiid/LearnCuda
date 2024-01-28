@@ -1,4 +1,4 @@
-#include <cstdio>
+#include "Render.cuh"
 
 #pragma region Vector Operators
 
@@ -184,35 +184,10 @@ __global__ void Render(const int width, const int height, float3* pixels)
     pixels[x + y * width] = Trace(ray);
 }
 
-void WriteImage(const char* filename, const int width, const int height, const float3* pixels)
+float3* Render(const int width, const int height)
 {
-    FILE* fout = fopen(filename, "w");
-
-    fprintf(fout, "P3\n");
-    fprintf(fout, "%d %d\n", width, height);
-    fprintf(fout, "255\n");
-
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            const float3 pixel = pixels[x + y * width];
-            fprintf(fout, "%d %d %d\n",
-                static_cast<int>(255.0f * pixel.x),
-                static_cast<int>(255.0f * pixel.y),
-                static_cast<int>(255.0f * pixel.z));
-        }
-    }
-
-    fclose(fout);
-}
-
-int main()
-{
-    constexpr int WIDTH = 1920;
-    constexpr int HEIGHT = 1080;
-    constexpr int NUM_BYTES = sizeof(float3) * WIDTH * HEIGHT;
-
     float3* pixels = nullptr;
-    cudaMallocManaged(&pixels, NUM_BYTES);
+    cudaMallocManaged(&pixels, sizeof(float3) * width * height);
 
     const dim3 DIM_BLOCK {
         32,
@@ -220,17 +195,18 @@ int main()
         1
     };
     const dim3 DIM_GRID {
-        CalcNumBlocks(WIDTH, DIM_BLOCK.x),
-        CalcNumBlocks(HEIGHT, DIM_BLOCK.y),
+        CalcNumBlocks(width, DIM_BLOCK.x),
+        CalcNumBlocks(height, DIM_BLOCK.y),
         1
     };
-    Render<<<DIM_GRID, DIM_BLOCK>>>(WIDTH, HEIGHT, pixels);
+    Render<<<DIM_GRID, DIM_BLOCK>>>(width, height, pixels);
 
     cudaDeviceSynchronize();
 
-    WriteImage("output.ppm", WIDTH, HEIGHT, pixels);
+    return pixels;
+}
 
+void FreeImage(float3* pixels)
+{
     cudaFree(pixels);
-
-    return 0;
 }

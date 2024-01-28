@@ -1,10 +1,20 @@
 cmake_minimum_required(VERSION 3.27)
-project(LearnCuda CUDA)
+project(LearnCuda CUDA CXX)
 
 set(CMAKE_CUDA_STANDARD 20)
 
-add_executable(LearnCuda
-        main.cu)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+add_subdirectory(glfw EXCLUDE_FROM_ALL)
 
-set_target_properties(LearnCuda PROPERTIES
-        CUDA_SEPARABLE_COMPILATION ON)
+add_subdirectory(glad EXCLUDE_FROM_ALL)
+
+add_executable(LearnCuda
+        Render.cu Render.cuh
+        Shader.cpp Shader.h
+        Viewer.cpp)
+
+target_compile_definitions(LearnCuda PRIVATE GLFW_INCLUDE_NONE)
+
+target_link_libraries(LearnCuda PRIVATE glfw glad)
