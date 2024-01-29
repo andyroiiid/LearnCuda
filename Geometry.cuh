@@ -8,7 +8,7 @@ struct Ray {
     float3 origin;
     float3 direction;
 
-    [[nodiscard]] __device__ float3 At(const float t) const
+    [[nodiscard]] __host__ __device__ float3 At(const float t) const
     {
         return origin + direction * t;
     }
@@ -18,7 +18,13 @@ struct Sphere {
     float3 center;
     float radius;
 
-    [[nodiscard]] __device__ float Hit(const Ray& ray) const
+    __host__ __device__ Sphere(const float3& center, const float radius)
+        : center(center)
+        , radius(radius)
+    {
+    }
+
+    [[nodiscard]] __host__ __device__ float Hit(const Ray& ray) const
     {
         const float3 oc = ray.origin - center;
         const float a = LengthSquared(ray.direction);
@@ -35,7 +41,7 @@ struct Triangle {
     float3 p2;
     float3 normal;
 
-    __device__ Triangle(const float3& p0, const float3& p1, const float3& p2)
+    __host__ __device__ Triangle(const float3& p0, const float3& p1, const float3& p2)
         : p0(p0)
         , p1(p1)
         , p2(p2)
@@ -43,7 +49,7 @@ struct Triangle {
         normal = Normalize(Cross(p1 - p0, p2 - p1));
     }
 
-    [[nodiscard]] __device__ float Hit(const Ray& ray) const
+    [[nodiscard]] __host__ __device__ float Hit(const Ray& ray) const
     {
         const float normalDotDirection = Dot(normal, ray.direction);
 
