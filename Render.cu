@@ -14,7 +14,7 @@ __device__ float3 Trace(const Ray& ray)
 {
     {
         constexpr Sphere sphere {
-            { 0.0f, 0.0f, -1.0f },
+            { 0.0f, 0.0f, 0.0f },
             0.5f
         };
         const float t = sphere.Hit(ray);
@@ -25,9 +25,9 @@ __device__ float3 Trace(const Ray& ray)
 
     {
         const Triangle triangle {
-            { -1.0f, -1.0f, 0.0f },
-            { 1.0f, -1.0f, 0.0f },
-            { -1.0f, -1.0f, -2.0f }
+            { -1.0f, -1.0f, 1.0f },
+            { 1.0f, -1.0f, 1.0f },
+            { -1.0f, -1.0f, -1.0f }
         };
         const float t = triangle.Hit(ray);
         if (t > 0.0f) {
@@ -37,9 +37,9 @@ __device__ float3 Trace(const Ray& ray)
 
     {
         const Triangle triangle {
-            { -1.0f, -1.0f, -2.0f },
-            { 1.0f, -1.0f, 0.0f },
-            { 1.0f, -1.0f, -2.0f }
+            { -1.0f, -1.0f, -1.0f },
+            { 1.0f, -1.0f, 1.0f },
+            { 1.0f, -1.0f, -1.0f }
         };
         const float t = triangle.Hit(ray);
         if (t > 0.0f) {
@@ -69,7 +69,7 @@ __global__ void Render(const int width, const int height, float4* pixels)
         static_cast<float>(y) / static_cast<float>(height)
     };
 
-    constexpr float3 origin { 0.0f, 0.0f, 0.0f };
+    constexpr float3 origin { 0.0f, 0.0f, 3.0f };
 
     constexpr float focalLength = 1.0f;
 

@@ -12,16 +12,6 @@ struct Ray {
     {
         return origin + direction * t;
     }
-
-    [[nodiscard]] __device__ float HitSphere(const float3& center, const float radius) const
-    {
-        const float3 oc = origin - center;
-        const float a = LengthSquared(direction);
-        const float b = 2.0f * Dot(oc, direction);
-        const float c = LengthSquared(oc) - radius * radius;
-        const float discriminant = b * b - 4 * a * c;
-        return discriminant < 0 ? -1.0f : (-b - sqrt(discriminant)) / (2.0f * a);
-    }
 };
 
 struct Sphere {
@@ -30,7 +20,12 @@ struct Sphere {
 
     [[nodiscard]] __device__ float Hit(const Ray& ray) const
     {
-        return ray.HitSphere(center, radius);
+        const float3 oc = ray.origin - center;
+        const float a = LengthSquared(ray.direction);
+        const float b = 2.0f * Dot(oc, ray.direction);
+        const float c = LengthSquared(oc) - radius * radius;
+        const float discriminant = b * b - 4 * a * c;
+        return discriminant < 0 ? -1.0f : (-b - sqrt(discriminant)) / (2.0f * a);
     }
 };
 
