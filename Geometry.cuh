@@ -22,10 +22,10 @@ struct Sphere {
     {
         const float3 oc = ray.origin - center;
         const float a = LengthSquared(ray.direction);
-        const float b = 2.0f * Dot(oc, ray.direction);
+        const float bHalf = Dot(oc, ray.direction);
         const float c = LengthSquared(oc) - radius * radius;
-        const float discriminant = b * b - 4 * a * c;
-        return discriminant < 0 ? -1.0f : (-b - sqrt(discriminant)) / (2.0f * a);
+        const float discriminant = bHalf * bHalf - a * c;
+        return discriminant < 0 ? -1.0f : (-bHalf - sqrt(discriminant)) / a;
     }
 };
 
