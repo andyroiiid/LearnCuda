@@ -2,8 +2,4 @@
 
 #pragma once
 
-struct float3;
-
-float3* Render(int width, int height);
-
-void FreeImage(float3* pixels);
+void RenderImage(int width, int height);

@@ -1,5 +1,7 @@
 #include "Render.cuh"
 
+#include <glad/gl.h>
+
 #pragma region Vector Operators
 
 inline __device__ float3 operator-(const float3& a)
@@ -153,7 +155,7 @@ __device__ float3 Trace(const Ray& ray)
         ray.direction.y * 0.5f + 0.5f);
 }
 
-__global__ void Render(const int width, const int height, float3* pixels)
+__global__ void Render(const int width, const int height, float4* pixels)
 {
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -181,13 +183,14 @@ __global__ void Render(const int width, const int height, float3* pixels)
 
     const Ray ray { origin, Normalize(direction) };
 
-    pixels[x + y * width] = Trace(ray);
+    const float3 pixel = Trace(ray);
+    pixels[x + y * width] = { pixel.x, pixel.y, pixel.z, 1.0f };
 }
 
-float3* Render(const int width, const int height)
+void RenderImage(const int width, const int height)
 {
-    float3* pixels = nullptr;
-    cudaMallocManaged(&pixels, sizeof(float3) * width * height);
+    float4* pixels = nullptr;
+    cudaMallocManaged(&pixels, sizeof(float4) * width * height);
 
     const dim3 DIM_BLOCK {
         32,
@@ -203,10 +206,7 @@ float3* Render(const int width, const int height)
 
     cudaDeviceSynchronize();
 
-    return pixels;
-}
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_FLOAT, pixels);
 
-void FreeImage(float3* pixels)
-{
     cudaFree(pixels);
 }

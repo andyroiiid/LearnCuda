@@ -12,7 +12,6 @@ add_subdirectory(glad EXCLUDE_FROM_ALL)
 
 add_executable(LearnCuda
         Render.cu Render.cuh
-        Shader.cpp Shader.h
         Viewer.cpp)
 
 target_compile_definitions(LearnCuda PRIVATE GLFW_INCLUDE_NONE)
