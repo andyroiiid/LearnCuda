@@ -11,6 +11,8 @@ add_subdirectory(glfw EXCLUDE_FROM_ALL)
 add_subdirectory(glad EXCLUDE_FROM_ALL)
 
 add_executable(LearnCuda
+        Vector.cuh
+        Geometry.cuh
         Render.cu Render.cuh
         Viewer.cpp)
 
