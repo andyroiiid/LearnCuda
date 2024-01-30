@@ -55,7 +55,7 @@ GLuint CreateProgram(const GLuint vertexShader, const GLuint fragmentShader)
     return program;
 }
 
-void SetupGl()
+void SetupGL()
 {
     GLuint quad = 0;
     glGenBuffers(1, &quad);
@@ -142,18 +142,28 @@ int main()
     glfwMakeContextCurrent(window);
     gladLoadGL(glfwGetProcAddress);
 
-    SetupGl();
+    SetupGL();
 
-    const double renderTime = RenderImage(WIDTH / 4, HEIGHT / 4);
-    glfwSetWindowTitle(window, std::format("Render time = {:.4f}ms", renderTime * 1000).c_str());
+    Framebuffer framebuffer = Framebuffer::Create(WIDTH / 4, HEIGHT / 4);
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+
+        if (glfwGetKey(window, GLFW_KEY_SPACE)) {
+            framebuffer.frameCount = 0;
+        }
+
+        framebuffer.frameCount++;
+
+        const double renderTime = RenderImage(framebuffer);
+        glfwSetWindowTitle(window, std::format("Render time = {:.4f}ms", renderTime * 1000).c_str());
 
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
         glfwSwapBuffers(window);
     }
+
+    Framebuffer::Free(framebuffer);
 
     glfwDestroyWindow(window);
 

@@ -12,6 +12,22 @@ unsigned CalcNumBlocks(const unsigned size, const unsigned blockSize)
     return size % blockSize ? count + 1 : count;
 }
 
+Framebuffer Framebuffer::Create(const int width, const int height)
+{
+    Framebuffer framebuffer {};
+    framebuffer.width = width;
+    framebuffer.height = height;
+    cudaMallocManaged(&framebuffer.pixels, sizeof(float3) * width * height);
+    cudaMallocManaged(&framebuffer.randomStates, sizeof(curandState) * width * height);
+    return framebuffer;
+}
+
+void Framebuffer::Free(const Framebuffer& framebuffer)
+{
+    cudaFree(framebuffer.pixels);
+    cudaFree(framebuffer.randomStates);
+}
+
 struct Scene {
     static Scene Create(const std::span<const Sphere>& spheres, const std::span<const Triangle>& triangles)
     {
@@ -102,11 +118,8 @@ struct Scene {
 };
 
 __global__ void Render(
-    const int width,
-    const int height,
-    float4* pixels,
-    curandState* randomStates,
-    const int samples,
+    // ReSharper disable once CppPassValueParameterByConstReference
+    const Framebuffer framebuffer,
     const int maxBounces,
     // ReSharper disable once CppPassValueParameterByConstReference
     const Scene scene)
@@ -114,49 +127,40 @@ __global__ void Render(
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (x >= width || y >= height) {
+    if (x >= framebuffer.width || y >= framebuffer.height) {
         return;
     }
 
-    const int threadId = x + y * width;
-    curandState* randomState = randomStates + threadId;
-    curand_init(0, threadId, 0, randomState);
+    const int threadId = x + y * framebuffer.width;
+    curandState* randomState = framebuffer.randomStates + threadId;
+    curand_init(framebuffer.frameCount, threadId, 0, randomState);
 
-    const float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+    const float aspectRatio = static_cast<float>(framebuffer.width) / static_cast<float>(framebuffer.height);
 
-    float3 pixel { 0.0f, 0.0f, 0.0f };
-    for (int i = 0; i < samples; i++) {
-        const float2 uv = {
-            (static_cast<float>(x) + curand_uniform(randomState) - 0.5f) / static_cast<float>(width),
-            (static_cast<float>(y) + curand_uniform(randomState) - 0.5f) / static_cast<float>(height)
-        };
+    const float2 uv = {
+        (static_cast<float>(x) + curand_uniform(randomState) - 0.5f) / static_cast<float>(framebuffer.width),
+        (static_cast<float>(y) + curand_uniform(randomState) - 0.5f) / static_cast<float>(framebuffer.height)
+    };
 
-        constexpr float3 origin { 0.0f, 0.0f, 2.0f };
+    constexpr float3 origin { 0.0f, 0.0f, 2.0f };
 
-        constexpr float focalLength = 1.0f;
+    constexpr float focalLength = 1.0f;
 
-        const float3 direction {
-            aspectRatio * (uv.x - 0.5f) * 2.0f,
-            -(uv.y - 0.5f) * 2.0f,
-            -focalLength
-        };
+    const float3 direction {
+        aspectRatio * (uv.x - 0.5f) * 2.0f,
+        -(uv.y - 0.5f) * 2.0f,
+        -focalLength
+    };
 
-        const Ray ray { origin, Normalize(direction) };
+    const Ray ray { origin, Normalize(direction) };
 
-        pixel = pixel + scene.Trace(ray, maxBounces, randomState);
-    }
-    pixel = pixel / samples;
-
-    pixels[threadId] = { pixel.x, pixel.y, pixel.z, 1.0f };
+    float3& pixel = framebuffer.pixels[threadId];
+    const float3 sample = scene.Trace(ray, maxBounces, randomState);
+    pixel = Lerp(pixel, sample, 1.0f / static_cast<float>(framebuffer.frameCount + 1));
 }
 
-double RenderImage(const int width, const int height)
+double RenderImage(const Framebuffer& framebuffer)
 {
-    float4* pixels = nullptr;
-    curandState* randomStates = nullptr;
-    cudaMallocManaged(&pixels, sizeof(float4) * width * height);
-    cudaMallocManaged(&randomStates, sizeof(curandState) * width * height);
-
     const Sphere spheres[] {
         { { 0.0f, 0.0f, 0.0f }, 1.0f },
     };
@@ -178,19 +182,25 @@ double RenderImage(const int width, const int height)
         1
     };
     const dim3 DIM_GRID {
-        CalcNumBlocks(width, DIM_BLOCK.x),
-        CalcNumBlocks(height, DIM_BLOCK.y),
+        CalcNumBlocks(framebuffer.width, DIM_BLOCK.x),
+        CalcNumBlocks(framebuffer.height, DIM_BLOCK.y),
         1
     };
     const double prevTime = glfwGetTime();
-    Render<<<DIM_GRID, DIM_BLOCK>>>(width, height, pixels, randomStates, 128, 8, scene);
+    Render<<<DIM_GRID, DIM_BLOCK>>>(framebuffer, 8, scene);
     cudaDeviceSynchronize();
     const double currTime = glfwGetTime();
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_FLOAT, pixels);
-
-    cudaFree(pixels);
-    cudaFree(randomStates);
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGB32F,
+        framebuffer.width,
+        framebuffer.height,
+        0,
+        GL_RGB,
+        GL_FLOAT,
+        framebuffer.pixels);
 
     return currTime - prevTime;
 }
