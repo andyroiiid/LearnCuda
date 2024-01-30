@@ -1,5 +1,3 @@
-// Copyright 2024 Andrew Huang. All Rights Reserved.
-
 #pragma once
 
 #include "Render.cuh"
