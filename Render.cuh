@@ -1,3 +1,3 @@
 #pragma once
 
-void RenderImage(int width, int height);
+double RenderImage(int width, int height);

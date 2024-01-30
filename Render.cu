@@ -2,6 +2,7 @@
 
 #include "Geometry.cuh"
 
+#include <GLFW/glfw3.h>
 #include <glad/gl.h>
 #include <span>
 
@@ -149,7 +150,7 @@ __global__ void Render(
     pixels[threadId] = { pixel.x, pixel.y, pixel.z, 1.0f };
 }
 
-void RenderImage(const int width, const int height)
+double RenderImage(const int width, const int height)
 {
     float4* pixels = nullptr;
     curandState* randomStates = nullptr;
@@ -181,12 +182,15 @@ void RenderImage(const int width, const int height)
         CalcNumBlocks(height, DIM_BLOCK.y),
         1
     };
+    const double prevTime = glfwGetTime();
     Render<<<DIM_GRID, DIM_BLOCK>>>(width, height, pixels, randomStates, 128, 8, scene);
-
     cudaDeviceSynchronize();
+    const double currTime = glfwGetTime();
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_FLOAT, pixels);
 
     cudaFree(pixels);
     cudaFree(randomStates);
+
+    return currTime - prevTime;
 }

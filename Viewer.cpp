@@ -3,7 +3,7 @@
 #include "Render.cuh"
 
 #include <GLFW/glfw3.h>
-#include <cstdio>
+#include <format>
 #include <glad/gl.h>
 
 namespace {
@@ -144,7 +144,8 @@ int main()
 
     SetupGl();
 
-    RenderImage(WIDTH / 4, HEIGHT / 4);
+    const double renderTime = RenderImage(WIDTH / 4, HEIGHT / 4);
+    glfwSetWindowTitle(window, std::format("Render time = {:.4f}ms", renderTime * 1000).c_str());
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
