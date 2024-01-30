@@ -2,6 +2,7 @@
 
 #include "Geometry.cuh"
 
+#include <curand_kernel.h>
 #include <glad/gl.h>
 #include <span>
 
@@ -76,7 +77,7 @@ struct Scene {
 };
 
 // ReSharper disable once CppPassValueParameterByConstReference
-__global__ void Render(const int width, const int height, float4* pixels, const Scene scene)
+__global__ void Render(const int width, const int height, float4* pixels, curandState* randomStates, const int samples, const Scene scene)
 {
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -85,33 +86,44 @@ __global__ void Render(const int width, const int height, float4* pixels, const 
         return;
     }
 
+    const int threadId = x + y * width;
+    curandState* randomState = randomStates + threadId;
+    curand_init(0, threadId, 0, randomState);
+
     const float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
-    const float2 uv = {
-        static_cast<float>(x) / static_cast<float>(width),
-        static_cast<float>(y) / static_cast<float>(height)
-    };
+    float3 pixel { 0.0f, 0.0f, 0.0f };
+    for (int i = 0; i < samples; i++) {
+        const float2 uv = {
+            (static_cast<float>(x) + curand_uniform(randomState) - 0.5f) / static_cast<float>(width),
+            (static_cast<float>(y) + curand_uniform(randomState) - 0.5f) / static_cast<float>(height)
+        };
 
-    constexpr float3 origin { 0.0f, 0.0f, 2.0f };
+        constexpr float3 origin { 0.0f, 0.0f, 2.0f };
 
-    constexpr float focalLength = 1.0f;
+        constexpr float focalLength = 1.0f;
 
-    const float3 direction {
-        aspectRatio * (uv.x - 0.5f) * 2.0f,
-        -(uv.y - 0.5f) * 2.0f,
-        -focalLength
-    };
+        const float3 direction {
+            aspectRatio * (uv.x - 0.5f) * 2.0f,
+            -(uv.y - 0.5f) * 2.0f,
+            -focalLength
+        };
 
-    const Ray ray { origin, Normalize(direction) };
+        const Ray ray { origin, Normalize(direction) };
 
-    const float3 pixel = scene.Trace(ray);
-    pixels[x + y * width] = { pixel.x, pixel.y, pixel.z, 1.0f };
+        pixel = pixel + scene.Trace(ray);
+    }
+    pixel = pixel / samples;
+
+    pixels[threadId] = { pixel.x, pixel.y, pixel.z, 1.0f };
 }
 
 void RenderImage(const int width, const int height)
 {
     float4* pixels = nullptr;
+    curandState* randomStates = nullptr;
     cudaMallocManaged(&pixels, sizeof(float4) * width * height);
+    cudaMallocManaged(&randomStates, sizeof(curandState) * width * height);
 
     const Sphere spheres[] {
         { { 0.0f, 0.0f, 0.0f }, 1.0f },
@@ -138,11 +150,12 @@ void RenderImage(const int width, const int height)
         CalcNumBlocks(height, DIM_BLOCK.y),
         1
     };
-    Render<<<DIM_GRID, DIM_BLOCK>>>(width, height, pixels, scene);
+    Render<<<DIM_GRID, DIM_BLOCK>>>(width, height, pixels, randomStates, 64, scene);
 
     cudaDeviceSynchronize();
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_FLOAT, pixels);
 
     cudaFree(pixels);
+    cudaFree(randomStates);
 }
