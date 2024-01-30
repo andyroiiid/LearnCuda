@@ -12,22 +12,6 @@ unsigned CalcNumBlocks(const unsigned size, const unsigned blockSize)
     return size % blockSize ? count + 1 : count;
 }
 
-Framebuffer Framebuffer::Create(const int width, const int height)
-{
-    Framebuffer framebuffer {};
-    framebuffer.width = width;
-    framebuffer.height = height;
-    cudaMallocManaged(&framebuffer.pixels, sizeof(float3) * width * height);
-    cudaMallocManaged(&framebuffer.randomStates, sizeof(curandState) * width * height);
-    return framebuffer;
-}
-
-void Framebuffer::Free(const Framebuffer& framebuffer)
-{
-    cudaFree(framebuffer.pixels);
-    cudaFree(framebuffer.randomStates);
-}
-
 struct Scene {
     static Scene Create(const std::span<const Sphere>& spheres, const std::span<const Triangle>& triangles)
     {

@@ -15,6 +15,7 @@ add_subdirectory(glad EXCLUDE_FROM_ALL)
 add_executable(LearnCuda
         Vector.cuh
         Geometry.cuh
+        Framebuffer.cu Framebuffer.cuh
         Render.cu Render.cuh
         Viewer.cpp)
 
