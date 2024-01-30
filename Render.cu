@@ -2,7 +2,6 @@
 
 #include "Geometry.cuh"
 
-#include <curand_kernel.h>
 #include <glad/gl.h>
 #include <span>
 
@@ -31,43 +30,68 @@ struct Scene {
         cudaFree(scene.m_triangles);
     }
 
-    __device__ float3 Trace(const Ray& ray) const
+    struct HitResult {
+        float t;
+        float3 position;
+        float3 normal;
+    };
+
+    __device__ HitResult Hit(const Ray& ray) const
     {
-        float closest = INFINITY;
-        float3 normal { 0.0f, 0.0f, 0.0f };
+        HitResult hit {
+            INFINITY,
+            { 0.0f, 0.0f, 0.0f },
+            { 0.0f, 0.0f, 0.0f }
+        };
+
+        constexpr float CLOSEST_HIT = 0.001f;
 
         for (int i = 0; i < m_numSpheres; i++) {
             const Sphere& sphere = m_spheres[i];
 
             const float t = sphere.Hit(ray);
-            if (t < 0.0f || t >= closest) {
+            if (t < CLOSEST_HIT || t >= hit.t) {
                 continue;
             }
 
-            closest = t;
-            normal = Normalize(ray.At(t) - sphere.center);
+            hit.t = t;
+            hit.position = ray.At(t);
+            hit.normal = Normalize(hit.position - sphere.center);
         }
 
         for (int i = 0; i < m_numTriangles; i++) {
             const Triangle& triangle = m_triangles[i];
 
             const float t = triangle.Hit(ray);
-            if (t < 0.0f || t >= closest) {
+            if (t < CLOSEST_HIT || t >= hit.t) {
                 continue;
             }
 
-            closest = t;
-            normal = triangle.normal;
+            hit.t = t;
+            hit.position = ray.At(t);
+            hit.normal = triangle.normal;
         }
 
-        if (closest == INFINITY) {
-            return Lerp(
-                { 1.0f, 1.0f, 1.0f },
-                { 0.5f, 0.7f, 1.0f },
-                ray.direction.y * 0.5f + 0.5f);
+        return hit;
+    }
+
+    __device__ float3 Trace(Ray ray, const int maxBounces, curandState* randomState) const
+    {
+        int bounces = 0;
+        while (bounces < maxBounces) {
+            const HitResult hit = Hit(ray);
+            if (hit.t == INFINITY) {
+                break;
+            }
+            ray = { hit.position, hit.normal + RandomOnSphere(randomState) };
+            bounces++;
         }
 
-        return normal * 0.5f + 0.5f;
+        const float3 skybox = Lerp(
+            { 1.0f, 1.0f, 1.0f },
+            { 0.5f, 0.7f, 1.0f },
+            ray.direction.y * 0.5f + 0.5f);
+        return skybox * powf(0.5f, bounces);
     }
 
     Sphere* m_spheres = nullptr;
@@ -76,8 +100,15 @@ struct Scene {
     uint32_t m_numTriangles = 0;
 };
 
-// ReSharper disable once CppPassValueParameterByConstReference
-__global__ void Render(const int width, const int height, float4* pixels, curandState* randomStates, const int samples, const Scene scene)
+__global__ void Render(
+    const int width,
+    const int height,
+    float4* pixels,
+    curandState* randomStates,
+    const int samples,
+    const int maxBounces,
+    // ReSharper disable once CppPassValueParameterByConstReference
+    const Scene scene)
 {
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -111,7 +142,7 @@ __global__ void Render(const int width, const int height, float4* pixels, curand
 
         const Ray ray { origin, Normalize(direction) };
 
-        pixel = pixel + scene.Trace(ray);
+        pixel = pixel + scene.Trace(ray, maxBounces, randomState);
     }
     pixel = pixel / samples;
 
@@ -130,12 +161,12 @@ void RenderImage(const int width, const int height)
     };
 
     const Triangle triangles[] {
-        { { -2.0f, -1.0f, 2.0f },
-            { 2.0f, -1.0f, 2.0f },
-            { -2.0f, -1.0f, -2.0f } },
-        { { -2.0f, -1.0f, -2.0f },
-            { 2.0f, -1.0f, 2.0f },
-            { 2.0f, -1.0f, -2.0f } },
+        { { -20.0f, -1.0f, 20.0f },
+            { 20.0f, -1.0f, 20.0f },
+            { -20.0f, -1.0f, -20.0f } },
+        { { -20.0f, -1.0f, -20.0f },
+            { 20.0f, -1.0f, 20.0f },
+            { 20.0f, -1.0f, -20.0f } },
     };
 
     const Scene scene = Scene::Create(spheres, triangles);
@@ -150,7 +181,7 @@ void RenderImage(const int width, const int height)
         CalcNumBlocks(height, DIM_BLOCK.y),
         1
     };
-    Render<<<DIM_GRID, DIM_BLOCK>>>(width, height, pixels, randomStates, 64, scene);
+    Render<<<DIM_GRID, DIM_BLOCK>>>(width, height, pixels, randomStates, 128, 8, scene);
 
     cudaDeviceSynchronize();
 

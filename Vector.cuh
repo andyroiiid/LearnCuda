@@ -1,6 +1,7 @@
 #pragma once
 
-#include <vector_types.h>
+#include <curand_kernel.h>
+#include <math_constants.h>
 
 inline __host__ __device__ float3 operator-(const float3& a)
 {
@@ -83,7 +84,7 @@ inline __host__ __device__ float LengthSquared(const float3& a)
 
 inline __host__ __device__ float Length(const float3& a)
 {
-    return sqrt(LengthSquared(a));
+    return sqrtf(LengthSquared(a));
 }
 
 inline __host__ __device__ float Distance(const float3& a, const float3& b)
@@ -99,4 +100,37 @@ inline __host__ __device__ float3 Normalize(const float3& a)
 inline __host__ __device__ float3 Lerp(const float3& a, const float3& b, const float t)
 {
     return a + (b - a) * t;
+}
+
+inline __device__ float3 RandomOnSphere(curandState* randomState)
+{
+    float sinLatitude = 0.0f;
+    float cosLatitude = 0.0f;
+    float sinLongitude = 0.0f;
+    float cosLongitude = 0.0f;
+    sincosf(acosf(2.0f * curand_uniform(randomState) - 1.0f) - CUDART_PI_F / 2.0f, &sinLatitude, &cosLatitude);
+    sincospif(2.0f * curand_uniform(randomState), &sinLongitude, &cosLongitude);
+    return {
+        cosLatitude * cosLongitude,
+        cosLatitude * sinLongitude,
+        sinLatitude
+    };
+}
+
+inline __device__ float3 RandomInSphere(curandState* randomState)
+{
+    const float radius = cbrtf(curand_uniform(randomState));
+    return RandomOnSphere(randomState) * radius;
+}
+
+inline __device__ float3 RandomOnHemisphere(curandState* randomState, const float3& direction)
+{
+    const float3 v = RandomOnSphere(randomState);
+    return Dot(v, direction) >= 0.0f ? v : -v;
+}
+
+inline __device__ float3 RandomInHemisphere(curandState* randomState, const float3& direction)
+{
+    const float3 v = RandomInSphere(randomState);
+    return Dot(v, direction) >= 0.0f ? v : -v;
 }

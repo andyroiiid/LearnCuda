@@ -29,7 +29,7 @@ struct Sphere {
         const float bHalf = Dot(oc, ray.direction);
         const float c = LengthSquared(oc) - radius * radius;
         const float discriminant = bHalf * bHalf - a * c;
-        return discriminant < 0 ? -1.0f : (-bHalf - sqrt(discriminant)) / a;
+        return discriminant < 0 ? -1.0f : (-bHalf - sqrtf(discriminant)) / a;
     }
 };
 
