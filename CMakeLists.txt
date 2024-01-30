@@ -16,6 +16,7 @@ add_executable(LearnCuda
         Vector.cuh
         Geometry.cuh
         Framebuffer.cu Framebuffer.cuh
+        Scene.cu Scene.cuh
         Render.cu Render.cuh
         Viewer.cpp)
 
