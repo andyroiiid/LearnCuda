@@ -155,8 +155,10 @@ int main()
 
         framebuffer.frameCount++;
 
-        const double renderTime = RenderImage(framebuffer);
-        glfwSetWindowTitle(window, std::format("Render time = {:.4f}ms", renderTime * 1000).c_str());
+        if (framebuffer.frameCount < 256) {
+            const double renderTime = RenderImage(framebuffer);
+            glfwSetWindowTitle(window, std::format("Render time = {:.4f}ms", renderTime * 1000).c_str());
+        }
 
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
